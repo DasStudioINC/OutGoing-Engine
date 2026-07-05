@@ -2,11 +2,16 @@ package com.yurpha.outgoingengine.build;
 
 
 
+import java.io.File;
 import java.io.IOException;
 
 import java.io.InputStream;
 import java.nio.file.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 import javax.tools.JavaCompiler;
@@ -161,57 +166,70 @@ public class BuildManager {
         }
     }
 
-
     private static void compileJavaFiles(Path sourceDir, Path outputDir, StringBuilder log){
-
         try {
-
             JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-
             if (compiler == null) {
-
                 log.append("ERROR: No Java compiler found. Are you using a JDK?\n");
-
                 return;
-
             }
 
             Files.createDirectories(outputDir);
 
-            Files.walk(sourceDir)
+            // 1. Point directly to the folder containing the SDK .jar files
+            Path fxSdkLib = Paths.get("lib", "javafx-sdk", "lib").toAbsolutePath();
 
-                    .filter(p -> p.toString().endsWith(".java"))
+            // 2. Collect all your project's .java files
+            List<String> javaFiles;
+            try (Stream<Path> walk = Files.walk(sourceDir)) {
+                javaFiles = walk.filter(p -> p.toString().endsWith(".java"))
+                        .map(Path::toString)
+                        .collect(Collectors.toList());
+            }
 
-                    .forEach(javaFile -> {
+            if (javaFiles.isEmpty()) {
+                log.append("Warning: No .java source files found to compile.\n");
+                return;
+            }
 
-                        log.append("Compiling: ")
-                                .append(javaFile.getFileName())
-                                .append("\n");
+            // 3. Build the compilation arguments using modules instead of classpath
+            List<String> arguments = new ArrayList<>();
 
-                        compiler.run(null,
-                                null,
-                                null,
-                                javaFile.toString(),
-                                "-d",
-                                outputDir.toString()
-                        );
-                    });
-            log.append("Compilation finished.\n");
+            // Tell the compiler where the JavaFX modules are located
+            arguments.add("--module-path");
+            arguments.add(fxSdkLib.toString());
 
+            // Tell the compiler which specific JavaFX features your game needs
+            arguments.add("--add-modules");
+            arguments.add("javafx.controls,javafx.fxml,javafx.graphics,javafx.media");
 
+            // Set the destination output directory
+            arguments.add("-d");
+            arguments.add(outputDir.toString());
 
-        }catch (Exception e){
+            // Append all code files to compile
+            arguments.addAll(javaFiles);
 
-            log.append("Compilation error: ")
-                    .append(e.getMessage())
-                    .append("\n");
+            log.append("Compiling ").append(javaFiles.size()).append(" files with module tracking...\n");
 
+            // 4. Run the compilation step
+            int result = compiler.run(
+                    null,
+                    null,
+                    null,
+                    arguments.toArray(new String[0])
+            );
+
+            if (result == 0) {
+                log.append("Compilation finished successfully.\n");
+            } else {
+                log.append("Compilation failed with error code: ").append(result).append("\n");
+            }
+
+        } catch (Exception e){
+            log.append("Compilation error: ").append(e.getMessage()).append("\n");
         }
-
-
     }
-
-
 
 
 
@@ -267,9 +285,9 @@ public class BuildManager {
 
             Files.createDirectories(outputDir);
 
-            log.append("\nRunning jpackage...\n");
+            log.append("\nRunning jpackage with JavaFX modules...\n");
 
-
+            Path fxModulesPath = Paths.get("lib", "javafx-jmods");
 
             ProcessBuilder pb = new ProcessBuilder(
 
@@ -280,8 +298,11 @@ public class BuildManager {
                     "--main-jar", jarFile.getFileName().toString(),
                     "--main-class", mainClass,
                     "--dest", outputDir.toString(),
-                    "--icon", iconPath.toAbsolutePath().toString()
+                    "--icon", iconPath.toAbsolutePath().toString(),
 
+                    // Critical for javafx
+                    "--module-path", fxModulesPath.toAbsolutePath().toString(),
+                    "--add-modules", "javafx.controls,javafx.fxml,javafx.graphics"
             );
 
 

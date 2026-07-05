@@ -1,7 +1,25 @@
-public class Main {
+import javafx.application.Application;
+import javafx.scene.Scene;
+import javafx.scene.control.Label;
+import javafx.scene.layout.StackPane;
+import javafx.stage.Stage;
+
+public class Main extends Application {
+
+    @Override
+    public void start(Stage stage) {
+        Label label = new Label("🎮 Your Game Engine Output Works! 🎮");
+        label.setStyle("-fx-font-size: 24px; -fx-text-fill: #333333;");
+
+        StackPane root = new StackPane(label);
+        Scene scene = new Scene(root, 600, 400);
+
+        stage.setTitle("Engine Exported Game");
+        stage.setScene(scene);
+        stage.show();
+    }
+
     public static void main(String[] args) {
-        System.out.println("Game Running...");
-
-
+        launch(args);
     }
 }
