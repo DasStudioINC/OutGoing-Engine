@@ -1,0 +1,20 @@
+[OutGoing Engine Build]
+Project: DemoGame
+
+Cleaning previous build...
+Build folders initialized. 
+
+Compiling project...
+Compiling: Main.java
+Compilation finished.
+Creating JAR...
+JAR created at: Builds\DemoGame_49840_1_BUILD\app\DemoGame.jar
+
+Running jpackage...
+jpackage completed.
+
+--- jpackage output ---
+
+-----------------------------
+
+BUILD SUCCESS
