@@ -1,11 +1,9 @@
 package com.yurpha.outgoingengine.build;
 
-
-
 import java.io.File;
 import java.io.IOException;
-
 import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,61 +11,45 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-
-import javax.tools.JavaCompiler;
-
-import javax.tools.ToolProvider;
-
-
-
 public class BuildManager {
 
     private static String oldPath;
-    public static String runBuild(String projectName, String mainclass, Path iconpath){
 
+    public static String runBuild(String projectName, String mainclass, Path iconpath){
         Random rr = new Random();
         int ri = rr.nextInt(0, 9);
-        String uniqueID = String.valueOf(System.currentTimeMillis()).substring(8) + "_" +String.valueOf(ri);
+        String uniqueID = String.valueOf(System.currentTimeMillis()).substring(8) + "_" + String.valueOf(ri);
         String uniqueName = projectName + "_" + uniqueID;
 
         StringBuilder log = new StringBuilder();
 
-        Path source = Paths.get("Projects", projectName);
-        Path target = Paths.get("Builds", uniqueName + "_BUILD");
+        // 1. Find where the engine is actually running on the user's computer
+        Path engineHome = getEngineHomeDirectories();
 
-
+        // 2. Map the Projects and Builds folders directly inside the engine's installation directory
+        Path source = engineHome.resolve("Projects").resolve(projectName);
+        Path target = engineHome.resolve("Builds").resolve(uniqueName + "_BUILD");
 
         try {
-
             log.append("[OutGoing Engine Build]\n");
-
             log.append("Project: ").append(projectName).append("\n\n");
 
-            // Delete old build if it exists
-
+            // Clean up previous tracking inside the current session
             if(oldPath != null){
                 Path old = Paths.get(oldPath);
                 if(Files.exists(old)){
-
-                    log.append("Cleaning previous build...\n");
-
+                    log.append("Cleaning previous session build...\n");
                     deleteFolder(old);
-
                 }
             }
-
-
-
 
             ensureBuildStructure(target, log);
 
             // Compile FIRST
             Path compileOutput = target.resolve("compiled");
-
             Path jarFile = target.resolve("app").resolve(projectName + ".jar");
 
             log.append("\nCompiling project...\n");
-
             compileJavaFiles(
                     source.resolve("src"),
                     compileOutput,
@@ -76,72 +58,42 @@ public class BuildManager {
 
             // THEN JAR
             createJar(compileOutput, jarFile, log);
-            // THEN PACKAGE
 
+            // THEN PACKAGE
             if(iconpath == null){
-                iconpath = extractIconFromResources("/applicationassets/OG.ico");
+                iconpath = engineHome.resolve("lib").resolve("templates").resolve("OG.ico");
             }
             packageWithJPackage(projectName, jarFile, target, mainclass, iconpath, log);
 
             log.append("\nBUILD SUCCESS\n");
 
-        }catch (IOException e){
-
+        } catch (IOException e){
             log.append("BUILD FAILED:\n");
-
             log.append(e.getMessage());
-
         }
 
-
-
         writeLog(target, log.toString());
-
-
-
         oldPath = target.toString();
 
         return log.toString();
-
     }
-
-
 
     private static void copyFolder(Path source, Path target) throws IOException{
-
         Files.walk(source).forEach(path -> {
-
             try{
-
                 Path relative = source.relativize(path);
-
                 Path dest = target.resolve(relative);
 
-
-
                 if(Files.isDirectory(path)){
-
                     Files.createDirectories(dest);
-
                 }else{
-
                     Files.copy(path, dest, StandardCopyOption.REPLACE_EXISTING);
-
                 }
-
             } catch (Exception e) {
-
                 throw new RuntimeException(e);
-
             }
-
-
-
         });
-
     }
-
-
 
     private static void deleteFolder(Path path) throws IOException {
         if (!Files.exists(path)) return;
@@ -153,11 +105,9 @@ public class BuildManager {
                             Files.delete(p);
                         } catch (IOException e) {
                             try {
-                                // Hard Windows bypass: If we can't delete it, rename it to a random name
-                                // in the temp directory. Windows always allows renaming locked files!
                                 Path temp = Files.createTempFile("junk", ".exe");
                                 Files.move(p, temp, StandardCopyOption.REPLACE_EXISTING);
-                                temp.toFile().deleteOnExit(); // Tells the OS to clear it when the IDE closes
+                                temp.toFile().deleteOnExit();
                             } catch (IOException ignored) {
                                 System.err.println("Completely blocked: " + p);
                             }
@@ -168,18 +118,17 @@ public class BuildManager {
 
     private static void compileJavaFiles(Path sourceDir, Path outputDir, StringBuilder log){
         try {
-            JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+            javax.tools.JavaCompiler compiler = javax.tools.ToolProvider.getSystemJavaCompiler();
             if (compiler == null) {
-                log.append("ERROR: No Java compiler found. Are you using a JDK?\n");
+                log.append("ERROR: Internal Java compiler module not found in runtime.\n");
                 return;
             }
 
             Files.createDirectories(outputDir);
 
-            // 1. Point directly to the folder containing the SDK .jar files
-            Path fxSdkLib = Paths.get("lib", "javafx-sdk", "lib").toAbsolutePath();
+            Path engineHome = getEngineHomeDirectories();
+            Path fxSdkLib = engineHome.resolve("lib").resolve("javafx-sdk").resolve("lib").toAbsolutePath();
 
-            // 2. Collect all your project's .java files
             List<String> javaFiles;
             try (Stream<Path> walk = Files.walk(sourceDir)) {
                 javaFiles = walk.filter(p -> p.toString().endsWith(".java"))
@@ -192,27 +141,17 @@ public class BuildManager {
                 return;
             }
 
-            // 3. Build the compilation arguments using modules instead of classpath
             List<String> arguments = new ArrayList<>();
-
-            // Tell the compiler where the JavaFX modules are located
             arguments.add("--module-path");
-            arguments.add(fxSdkLib.toString());
-
-            // Tell the compiler which specific JavaFX features your game needs
+            arguments.add(fxSdkLib.toFile().getAbsolutePath());
             arguments.add("--add-modules");
             arguments.add("javafx.controls,javafx.fxml,javafx.graphics,javafx.media");
-
-            // Set the destination output directory
             arguments.add("-d");
-            arguments.add(outputDir.toString());
-
-            // Append all code files to compile
+            arguments.add(outputDir.toFile().getAbsolutePath());
             arguments.addAll(javaFiles);
 
-            log.append("Compiling ").append(javaFiles.size()).append(" files with module tracking...\n");
+            log.append("Compiling ").append(javaFiles.size()).append(" files programmatically...\n");
 
-            // 4. Run the compilation step
             int result = compiler.run(
                     null,
                     null,
@@ -245,52 +184,30 @@ public class BuildManager {
                     "."
             );
 
-
-
-            pb.inheritIO();
-
+            pb.redirectErrorStream(true);
             Process process = pb.start();
-
+            String output = new String(process.getInputStream().readAllBytes());
             process.waitFor();
 
-
-
+            log.append(output);
             log.append("JAR created at: ").append(jarFile).append("\n");
 
         }catch (Exception e){
-
-            log.append("JAR creation failed: ")
-
-                    .append(e.getMessage())
-
-                    .append("\n");
-
+            log.append("JAR creation failed: ").append(e.getMessage()).append("\n");
         }
-
     }
 
-
-
     private static void packageWithJPackage(String projectName, Path jarFile, Path buildRoot, String mainClass, Path iconPath, StringBuilder log){
-
         try {
-
             Path outputDir = buildRoot.resolve("output");
-
-            Path appImageDir = outputDir.resolve(projectName);
-
-            //deleteFolder(outputDir);
-
-            Thread.sleep(200);
-
             Files.createDirectories(outputDir);
 
             log.append("\nRunning jpackage with JavaFX modules...\n");
 
-            Path fxModulesPath = Paths.get("lib", "javafx-jmods");
+            Path engineHome = getEngineHomeDirectories();
+            Path fxModulesPath = engineHome.resolve("lib").resolve("javafx-jmods").toAbsolutePath();
 
             ProcessBuilder pb = new ProcessBuilder(
-
                     "jpackage",
                     "--type", "app-image",
                     "--name", projectName,
@@ -299,118 +216,99 @@ public class BuildManager {
                     "--main-class", mainClass,
                     "--dest", outputDir.toString(),
                     "--icon", iconPath.toAbsolutePath().toString(),
-
-                    // Critical for javafx
                     "--module-path", fxModulesPath.toAbsolutePath().toString(),
                     "--add-modules", "javafx.controls,javafx.fxml,javafx.graphics"
             );
 
-
-
             pb.redirectErrorStream(true);
-
             Process process = pb.start();
-
             String output = new String(process.getInputStream().readAllBytes());
-
             process.waitFor();
 
             log.append("jpackage completed.\n");
-
             log.append("\n--- jpackage output ---\n");
-
             log.append(output);
-
             log.append("\n-----------------------------\n");
 
         }catch (Exception e){
-
-            log.append("jpackage failed: ")
-
-                    .append(e.getMessage())
-
-                    .append("\n");
-
+            log.append("jpackage failed: ").append(e.getMessage()).append("\n");
         }
-
     }
 
-
-
     private static void ensureBuildStructure(Path buildRoot, StringBuilder log){
-
         try{
-
             Path compiled = buildRoot.resolve("compiled");
-            //Path output = buildRoot.resolve("output");
             Path runtime = buildRoot.resolve("runtime");
             Path app = buildRoot.resolve("app");
 
-
-
             Files.createDirectories(compiled);
-            //Files.createDirectories(output);
             Files.createDirectories(runtime);
             Files.createDirectories(app);
 
-
-
-
-
             log.append("Build folders initialized. \n");
-
         } catch (Exception e) {
-
-            log.append("Failed to create build structure: ")
-                    .append(e.getMessage())
-                    .append("\n");
+            log.append("Failed to create build structure: ").append(e.getMessage()).append("\n");
         }
-
     }
-
-
 
     private static void writeLog(Path buildRoot, String log){
-
         try{
-
             Path logFile = buildRoot.resolve("build.log");
-
             Files.writeString(logFile, log);
-
         }catch (Exception e){
-
             System.out.println("Failed to write build log: " + e.getMessage());
-
         }
-
     }
 
-
     public static Path extractIconFromResources(String resourcePath){
-        System.out.println(BuildManager.class.getResource("/"));
-        System.out.println(BuildManager.class.getResource("/applicationassets/OG.ico"));
         InputStream in = BuildManager.class.getResourceAsStream(resourcePath);
-
-        if(in == null){
-            System.out.println("Check 1");
-            return null;
-        }
+        if(in == null) return null;
 
         try{
             Path tempIcon = Files.createTempFile("outgoing_engine_icon", ".ico");
             Files.copy(in, tempIcon, StandardCopyOption.REPLACE_EXISTING);
-
-            System.out.println("Check 2");
             return tempIcon;
         }catch (Exception e){
-            System.out.println("Error");
+            System.out.println("Error extracting icon");
         }
-
-        System.out.println("Check 3");
         return null;
     }
 
+    public static Path getEngineHomeDirectories() {
+        try {
+            String codePath = BuildManager.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
+            File jarFile = new File(codePath);
+            File resultDir = jarFile.getParentFile();
 
+            if (resultDir != null && resultDir.getName().equals("app")) {
+                return resultDir.getParentFile().toPath().toAbsolutePath();
+            }
+            return Paths.get("").toAbsolutePath();
+        } catch (URISyntaxException e) {
+            return Paths.get("").toAbsolutePath();
+        }
+    }
 
+    public static void initializeEngineWorkspace(){
+        try {
+            Path engineHome = getEngineHomeDirectories();
+            Path projectDir = engineHome.resolve("Projects").toAbsolutePath();
+            Path buildsDir = engineHome.resolve("Builds").toAbsolutePath();
+            Path libDir = engineHome.resolve("lib").toAbsolutePath();
+
+            // Create the folders
+            Files.createDirectories(projectDir);
+            Files.createDirectories(buildsDir);
+            Files.createDirectories(libDir);
+
+            // Drop a quick debug text file right in the engine root folder to verify paths
+            Path debugFile = engineHome.resolve("engine_path_debug.txt");
+            String debugText = "Engine Home: " + engineHome.toString() + "\n" +
+                    "Projects Target: " + projectDir.toString();
+            Files.writeString(debugFile, debugText);
+
+        } catch (Exception e) {
+            System.err.println("Failed to initialize engine workspace: " + e.getMessage());
+        }
+    }
 }

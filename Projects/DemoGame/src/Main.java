@@ -7,16 +7,22 @@ import javafx.stage.Stage;
 public class Main extends Application {
 
     @Override
-    public void start(Stage stage) {
-        Label label = new Label("🎮 Your Game Engine Output Works! 🎮");
-        label.setStyle("-fx-font-size: 24px; -fx-text-fill: #333333;");
+    public void start(Stage primaryStage) {
+        // This is the logic that runs AFTER the splash screen fades out completely
+        Runnable launchGameLoop = () -> {
+            Stage gameStage = new Stage();
+            // Set up your actual game view layout here
+            // MainGameWindow mainGame = new MainGameWindow(gameStage);
 
-        StackPane root = new StackPane(label);
-        Scene scene = new Scene(root, 600, 400);
+            gameStage.setTitle("DemoGame - Running on OutGoing Engine");
+            gameStage.setWidth(1280);
+            gameStage.setHeight(720);
+            gameStage.show();
+        };
 
-        stage.setTitle("Engine Exported Game");
-        stage.setScene(scene);
-        stage.show();
+        // Instantiate and trigger the splash sequence
+        SplashScreen splash = new SplashScreen(primaryStage, launchGameLoop);
+        splash.show();
     }
 
     public static void main(String[] args) {

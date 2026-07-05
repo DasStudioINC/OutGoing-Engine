@@ -1,0 +1,19 @@
+[OutGoing Engine Build]
+Project: DemoGame
+
+Build folders initialized. 
+
+Compiling project...
+Compiling 1 files with module tracking...
+Compilation failed with error code: 2
+Creating JAR...
+JAR created at: C:\Personal Projects\OutGoing Engine\Builds\DemoGame_87509_2_BUILD\app\DemoGame.jar
+
+Running jpackage with JavaFX modules...
+jpackage completed.
+
+--- jpackage output ---
+
+-----------------------------
+
+BUILD SUCCESS
