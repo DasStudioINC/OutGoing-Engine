@@ -1,0 +1,19 @@
+[OutGoing Engine Build]
+Project: DemoGame
+
+Build folders initialized. 
+
+Compiling project...
+Compiling 2 files programmatically...
+Compilation finished successfully.
+Successfully bundled resource files into JAR.
+JAR created successfully at: C:\Personal Projects\OutGoing Engine\Builds\DemoGame_71054_8_BUILD\app\DemoGame.jar
+
+Running jpackage with JavaFX modules...
+jpackage completed.
+
+--- jpackage output ---
+
+-----------------------------
+
+BUILD SUCCESS

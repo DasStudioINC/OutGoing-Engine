@@ -1,0 +1,2 @@
+Engine Home: C:\Personal Projects\OutGoing Engine
+Projects Target: C:\Personal Projects\OutGoing Engine\Projects

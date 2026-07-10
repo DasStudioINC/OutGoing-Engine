@@ -5,7 +5,9 @@ import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 
 public class Main extends Application {
-
+    
+   
+    
     @Override
     public void start(Stage primaryStage) {
         // This is the logic that runs AFTER the splash screen fades out completely
@@ -13,8 +15,8 @@ public class Main extends Application {
             Stage gameStage = new Stage();
             // Set up your actual game view layout here
             // MainGameWindow mainGame = new MainGameWindow(gameStage);
-
-            gameStage.setTitle("DemoGame - Running on OutGoing Engine");
+            extractAll("Debrad");
+            gameStage.setTitle("DemoGame - Running on OutGoing Engine" + text);
             gameStage.setWidth(1280);
             gameStage.setHeight(720);
             gameStage.show();

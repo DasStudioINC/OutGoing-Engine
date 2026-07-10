@@ -1,0 +1,44 @@
+.code-area {
+    -fx-font-family: "Consolas", "Courier New", monospace;
+    -fx-font-size: 14px;
+    -fx-background-color: #1e1e24;
+    -fx-text-fill: #ffffff;
+}
+
+.plain-text {
+    -fx-fill: #d4d4d4; /* Light off-white/gray so it pops on the dark background */
+}
+
+/* Access Modifiers: public, private, protected */
+.modifier {
+    -fx-fill: #e5c07b; /* Soft Gold/Yellow */
+    -fx-font-weight: bold;
+}
+
+/* Data Types: int, double, void, String */
+.data-type {
+    -fx-fill: #98c379; /* Soft Mint Green */
+}
+
+/* Control Flow: if, else, for, while, return */
+.control-flow {
+    -fx-fill: #c678dd; /* Bright Purple/Magenta */
+    -fx-font-weight: bold;
+}
+
+/* Structure Declarations: class, package, import, new */
+.declaration {
+    -fx-fill: #569cd6; /* Classic Deep Blue */
+}
+
+/* Ghost Text styling */
+.ghost-text {
+    -fx-fill: #6a6a6a;
+    -fx-font-style: italic;
+}
+
+.lineno{
+    -fx-text-fill: #858585;
+    -fx-background-color: #252526;
+    -fx-padding: 0 5px 0 5px;
+}

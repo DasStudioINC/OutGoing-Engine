@@ -8,8 +8,13 @@ import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.jar.JarEntry;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.jar.Manifest;
+import java.util.jar.JarOutputStream;
+import java.util.jar.Attributes;
+import java.io.FileOutputStream;
 
 public class BuildManager {
 
@@ -23,10 +28,7 @@ public class BuildManager {
 
         StringBuilder log = new StringBuilder();
 
-        // 1. Find where the engine is actually running on the user's computer
         Path engineHome = getEngineHomeDirectories();
-
-        // 2. Map the Projects and Builds folders directly inside the engine's installation directory
         Path source = engineHome.resolve("Projects").resolve(projectName);
         Path target = engineHome.resolve("Builds").resolve(uniqueName + "_BUILD");
 
@@ -34,7 +36,6 @@ public class BuildManager {
             log.append("[OutGoing Engine Build]\n");
             log.append("Project: ").append(projectName).append("\n\n");
 
-            // Clean up previous tracking inside the current session
             if(oldPath != null){
                 Path old = Paths.get(oldPath);
                 if(Files.exists(old)){
@@ -45,7 +46,6 @@ public class BuildManager {
 
             ensureBuildStructure(target, log);
 
-            // Compile FIRST
             Path compileOutput = target.resolve("compiled");
             Path jarFile = target.resolve("app").resolve(projectName + ".jar");
 
@@ -56,10 +56,14 @@ public class BuildManager {
                     log
             );
 
-            // THEN JAR
-            createJar(compileOutput, jarFile, log);
+            // CASE-INSENSITIVE FALLBACK CHECK FOR RESOURCES
+            Path gameResources = source.resolve("resources");
+            if (!Files.exists(gameResources)) {
+                gameResources = source.resolve("Resources"); // Check for capital R
+            }
 
-            // THEN PACKAGE
+            createJar(compileOutput, gameResources, jarFile, log);
+
             if(iconpath == null){
                 iconpath = engineHome.resolve("lib").resolve("templates").resolve("OG.ico");
             }
@@ -171,29 +175,49 @@ public class BuildManager {
     }
 
 
+    private static void createJar(Path classDir, Path resourceDir, Path outputJarFile, StringBuilder log) {
+        try {
+            Files.createDirectories(outputJarFile.getParent());
 
-    private static void createJar(Path compiledDir, Path jarFile, StringBuilder log){
-        try{
-            log.append("Creating JAR...\n");
+            Manifest manifest = new Manifest();
+            manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
+            manifest.getMainAttributes().put(Attributes.Name.MAIN_CLASS, "Main");
 
-            ProcessBuilder pb = new ProcessBuilder(
-                    "jar",
-                    "--create",
-                    "--file", jarFile.toString(),
-                    "-C", compiledDir.toString(),
-                    "."
-            );
+            try (JarOutputStream jos = new JarOutputStream(new FileOutputStream(outputJarFile.toFile()), manifest)) {
 
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-            String output = new String(process.getInputStream().readAllBytes());
-            process.waitFor();
+                // 1. Pack compiled .class files
+                if (Files.exists(classDir)) {
+                    try (Stream<Path> walk = Files.walk(classDir)) {
+                        List<Path> files = walk.filter(Files::isRegularFile).collect(Collectors.toList());
+                        for (Path file : files) {
+                            String name = classDir.relativize(file).toString().replace("\\", "/");
+                            jos.putNextEntry(new JarEntry(name));
+                            Files.copy(file, jos);
+                            jos.closeEntry();
+                        }
+                    }
+                }
 
-            log.append(output);
-            log.append("JAR created at: ").append(jarFile).append("\n");
+                // 2. Pack resource assets
+                if (Files.exists(resourceDir)) {
+                    try (Stream<Path> walk = Files.walk(resourceDir)) {
+                        List<Path> files = walk.filter(Files::isRegularFile).collect(Collectors.toList());
+                        for (Path file : files) {
+                            String name = resourceDir.relativize(file).toString().replace("\\", "/");
+                            jos.putNextEntry(new JarEntry(name));
+                            Files.copy(file, jos);
+                            jos.closeEntry();
+                        }
+                    }
+                    log.append("Successfully bundled resource files into JAR.\n");
+                } else {
+                    log.append("Warning: Resource directory not found at: ").append(resourceDir.toAbsolutePath()).append("\n");
+                }
 
-        }catch (Exception e){
-            log.append("JAR creation failed: ").append(e.getMessage()).append("\n");
+            }
+            log.append("JAR created successfully at: ").append(outputJarFile).append("\n");
+        } catch (Exception e) {
+            log.append("Error creating JAR: ").append(e.getMessage()).append("\n");
         }
     }
 
@@ -296,12 +320,10 @@ public class BuildManager {
             Path buildsDir = engineHome.resolve("Builds").toAbsolutePath();
             Path libDir = engineHome.resolve("lib").toAbsolutePath();
 
-            // Create the folders
             Files.createDirectories(projectDir);
             Files.createDirectories(buildsDir);
             Files.createDirectories(libDir);
 
-            // Drop a quick debug text file right in the engine root folder to verify paths
             Path debugFile = engineHome.resolve("engine_path_debug.txt");
             String debugText = "Engine Home: " + engineHome.toString() + "\n" +
                     "Projects Target: " + projectDir.toString();

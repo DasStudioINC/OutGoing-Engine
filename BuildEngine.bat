@@ -3,13 +3,19 @@ echo ====================================================
 echo STEP 1: Cleaning and Rebuilding Fresh JAR Artifact...
 echo ====================================================
 cd "C:\Personal Projects\OutGoing Engine"
-:: Calls your project's internal building tool to update the code files
-call gradlew.bat currentArtifact || call mvn clean package || echo Skipping internal compiler step...
+
+:: 1. Build your engine jar first
+call mvn clean package || echo Skipping internal compiler step...
+
+:: 2. FIX: Copy RichTextFX and other dependencies directly into your jpackage input folder!
+echo Copying external dependencies into the artifact bundle folder...
+call mvn dependency:copy-dependencies -DoutputDirectory="C:\Personal Projects\OutGoing Engine\out\artifacts\OutGoingEngine_jar"
 
 echo.
 echo ====================================================
 echo STEP 2: Running jpackage to wrap into Native .exe...
 echo ====================================================
+:: Now when jpackage runs, it will grab your Engine jar AND all the library jars copied above!
 jpackage --type app-image --name "OutGoing Engine" --input "C:\Personal Projects\OutGoing Engine\out\artifacts\OutGoingEngine_jar" --main-jar OutGoingEngine.jar --main-class com.yurpha.outgoingengine.Main --dest dist --module-path lib/javafx-jmods --add-modules javafx.controls,javafx.fxml,javafx.graphics,javafx.media,jdk.compiler,jdk.zipfs
 
 echo.
